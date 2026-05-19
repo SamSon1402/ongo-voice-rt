@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OngoVoice-RT — Real-Time Voice Pipeline | InteractionLabs</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#1c1a17;
+  --bg-2:#211e1a;
+  --panel:#26221d;
+  --panel-2:#2e2922;
+  --line:#38322a;
+  --line-hot:#4a4135;
+  --cream:#f5ecdc;
+  --cream-dim:#c9bca5;
+  --muted:#8b7f6b;
+  --coral:#ff7a59;
+  --coral-glow:rgba(255,122,89,0.35);
+  --teal:#5fd4c7;
+  --blue:#7aa9ff;
+  --amber:#f0c674;
+  --red:#e85a5a;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);color:var(--cream);
+  min-height:100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 10% 0%, rgba(255,122,89,0.06), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(95,212,199,0.05), transparent 60%);
+  font-size:14px;
+}
+.mono{font-family:'IBM Plex Mono',monospace}
+.serif{font-family:'Fraunces',serif}
+
+/* Header */
+.hdr{
+  border-bottom:1px solid var(--line);
+  padding:18px 32px;display:flex;justify-content:space-between;align-items:center;
+  background:rgba(28,26,23,0.92);backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:50;
+}
+.brand{display:flex;align-items:center;gap:16px}
+.dial{
+  width:44px;height:44px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, #ff9a7e, var(--coral) 60%, #c54a2a);
+  position:relative;box-shadow:0 0 20px var(--coral-glow), inset 0 -3px 6px rgba(0,0,0,0.3);
+}
+.dial::after{
+  content:'';position:absolute;top:50%;left:50%;
+  width:3px;height:18px;background:var(--cream);
+  transform:translate(-50%,-90%) rotate(35deg);
+  transform-origin:50% 90%;border-radius:2px;
+}
+.brand-name{font-family:'Fraunces',serif;font-size:24px;font-weight:600;letter-spacing:-0.5px}
+.brand-name em{font-style:italic;color:var(--coral);font-weight:500}
+.brand-sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+
+.hdr-meta{display:flex;align-items:center;gap:18px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--cream-dim)}
+.hdr-meta .pill{
+  padding:6px 12px;border:1px solid var(--line-hot);
+  border-radius:100px;background:var(--panel);
+  display:flex;align-items:center;gap:8px;
+}
+.pill .led{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.pill.live .led{background:var(--coral);box-shadow:0 0 8px var(--coral);animation:breathe 2s ease-in-out infinite}
+@keyframes breathe{50%{opacity:0.5}}
+
+/* Layout */
+.shell{max-width:1500px;margin:0 auto;padding:28px 32px;display:grid;grid-template-columns:1fr 360px;gap:20px}
+@media(max-width:1180px){.shell{grid-template-columns:1fr}}
+
+.title-block{grid-column:1/-1;margin-bottom:8px}
+.title-block h1{
+  font-family:'Fraunces',serif;font-size:42px;font-weight:600;letter-spacing:-1.2px;
+  line-height:1.1;
+}
+.title-block h1 em{font-style:italic;color:var(--coral);font-weight:500}
+.title-block p{color:var(--cream-dim);margin-top:8px;font-size:15px;max-width:720px}
+
+/* Cards */
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:18px;
+  overflow:hidden;
+  position:relative;
+}
+.card-head{
+  padding:14px 20px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.card-title{font-family:'Fraunces',serif;font-size:16px;font-weight:600;letter-spacing:-0.2px}
+.card-title em{font-style:italic;color:var(--coral);font-weight:500}
+.card-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.card-body{padding:20px}
+
+/* Waveform stage */
+.stage{
+  height:280px;position:relative;
+  background:
+    radial-gradient(ellipse at center, rgba(255,122,89,0.08), transparent 70%),
+    var(--bg-2);
+  display:flex;align-items:center;justify-content:center;
+  border-bottom:1px solid var(--line);
+  overflow:hidden;
+}
+.stage-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(245,236,220,0.025) 1px, transparent 1px);
+  background-size: 100% 14px;
+  pointer-events:none;
+}
+.wave-wrap{
+  width:100%;height:170px;position:relative;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  padding:0 28px;
+}
+.wave-bar{
+  width:4px;background:var(--cream-dim);border-radius:2px;
+  transition:height 0.05s linear, background 0.2s;
+  min-height:6px;
+}
+.wave-bar.user{background:var(--cream)}
+.wave-bar.assistant{background:var(--coral);box-shadow:0 0 8px var(--coral-glow)}
+.wave-bar.silent{background:var(--line-hot);opacity:0.4}
+
+.stage-label{
+  position:absolute;top:18px;left:20px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+  letter-spacing:1.5px;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+}
+.stage-mode{
+  position:absolute;top:18px;right:20px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;
+  padding:5px 11px;border-radius:100px;border:1px solid var(--line-hot);
+  background:var(--panel);color:var(--cream-dim);
+}
+.stage-mode.user{color:var(--cream);border-color:var(--cream-dim)}
+.stage-mode.assistant{color:var(--coral);border-color:var(--coral);background:rgba(255,122,89,0.08)}
+
+/* VU meter */
+.vu-row{
+  position:absolute;bottom:20px;left:28px;right:28px;
+  display:flex;align-items:center;gap:14px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+}
+.vu{
+  flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;position:relative;
+}
+.vu-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--amber) 70%,var(--coral) 90%);width:0%;transition:width 0.1s}
+
+/* Pipeline lane */
+.pipeline{
+  display:grid;grid-template-columns:repeat(5,1fr);
+  gap:0;
+  padding:22px 20px;
+  position:relative;
+}
+.stage-box{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:12px;
+  padding:14px 14px;text-align:center;position:relative;
+  transition:all 0.3s;
+}
+.stage-box.active{
+  border-color:var(--coral);background:rgba(255,122,89,0.08);
+  box-shadow:0 0 20px var(--coral-glow);
+}
+.stage-box.done{border-color:var(--teal)}
+.stage-icon{font-size:20px;margin-bottom:6px;display:block}
+.stage-name{font-family:'Fraunces',serif;font-size:14px;font-weight:600}
+.stage-loc{font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-top:3px}
+.stage-loc.edge{color:var(--teal)}
+.stage-loc.cloud{color:var(--blue)}
+.stage-ms{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--cream-dim);margin-top:8px}
+.stage-ms.live{color:var(--coral)}
+
+.stage-arrow{
+  position:absolute;top:50%;right:-8px;width:16px;height:2px;background:var(--line);
+  transform:translateY(-50%);z-index:2;
+}
+.stage-arrow::after{
+  content:'';position:absolute;right:-4px;top:-4px;
+  border-left:6px solid var(--line);
+  border-top:5px solid transparent;border-bottom:5px solid transparent;
+}
+.stage-box.done + .stage-box .stage-arrow,
+.stage-box.done .stage-arrow{background:var(--teal)}
+.stage-box.done .stage-arrow::after{border-left-color:var(--teal)}
+
+/* Transcript */
+.transcript{
+  max-height:300px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:12px;padding:4px;
+}
+.bubble{
+  padding:12px 16px;border-radius:14px;max-width:85%;
+  font-size:14px;line-height:1.5;
+  animation:slideUp 0.35s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.bubble.user{
+  background:var(--panel-2);border:1px solid var(--line-hot);
+  align-self:flex-end;color:var(--cream);
+  border-bottom-right-radius:4px;
+}
+.bubble.assistant{
+  background:rgba(255,122,89,0.1);border:1px solid var(--coral);
+  align-self:flex-start;color:var(--cream);
+  border-bottom-left-radius:4px;
+}
+.bubble-meta{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+  margin-top:6px;display:flex;gap:10px;
+}
+.bubble-meta b{color:var(--cream-dim);font-weight:500}
+
+/* Controls */
+.controls{display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--line)}
+.btn{
+  flex:1;padding:12px 16px;border-radius:12px;
+  border:1px solid var(--line-hot);background:var(--panel-2);
+  color:var(--cream);font-family:'Inter',sans-serif;font-weight:500;font-size:13px;
+  cursor:pointer;transition:all 0.2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn:hover{border-color:var(--coral);background:rgba(255,122,89,0.06)}
+.btn.primary{background:var(--coral);border-color:var(--coral);color:#1c1a17;font-weight:600}
+.btn.primary:hover{background:#ff8d6e}
+.btn.ghost:hover{border-color:var(--cream-dim)}
+
+/* Right column */
+.right-col{display:flex;flex-direction:column;gap:20px}
+
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.metric{padding:18px;background:var(--panel)}
+.metric-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
+.metric-value{font-family:'Fraunces',serif;font-size:28px;font-weight:600;margin-top:4px;letter-spacing:-1px}
+.metric-value em{font-style:italic;color:var(--coral)}
+.metric-unit{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-left:3px}
+.metric-sub{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--cream-dim);margin-top:6px}
+
+/* Router decision */
+.router-rows{display:flex;flex-direction:column;gap:8px}
+.router-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;background:var(--panel-2);
+  border:1px solid var(--line);border-radius:10px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;
+}
+.router-row .badge{
+  font-size:10px;padding:3px 8px;border-radius:4px;font-weight:600;
+}
+.badge.edge{background:rgba(95,212,199,0.15);color:var(--teal)}
+.badge.cloud{background:rgba(122,169,255,0.15);color:var(--blue)}
+.router-row .what{flex:1;color:var(--cream-dim)}
+.router-row .ms{color:var(--muted);font-size:11px}
+
+/* Provider switch */
+.providers{display:flex;flex-direction:column;gap:8px}
+.provider{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:11px 14px;background:var(--panel-2);
+  border:1px solid var(--line);border-radius:10px;cursor:pointer;
+  transition:all 0.2s;
+}
+.provider:hover{border-color:var(--line-hot)}
+.provider.active{border-color:var(--coral);background:rgba(255,122,89,0.06)}
+.provider-name{font-family:'Fraunces',serif;font-weight:600;font-size:14px}
+.provider-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.provider-ms{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--cream-dim)}
+.provider.active .provider-ms{color:var(--coral)}
+
+/* Cost bar */
+.cost-stack{display:flex;height:36px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.cost-seg{display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#1c1a17;font-weight:600}
+.cost-edge{background:var(--teal)}
+.cost-cloud{background:var(--blue)}
+.cost-saved{background:var(--panel-2);color:var(--cream-dim)}
+.cost-legend{display:flex;gap:14px;margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.cost-legend span::before{content:'■';margin-right:5px}
+.cost-legend .e::before{color:var(--teal)}
+.cost-legend .c::before{color:var(--blue)}
+
+.foot{
+  grid-column:1/-1;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+  padding-top:12px;border-top:1px solid var(--line);margin-top:12px;
+  display:flex;justify-content:space-between;
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="brand">
+    <div class="dial"></div>
+    <div>
+      <div class="brand-name">Ongo<em>Voice</em>·RT</div>
+      <div class="brand-sub">Edge-first conversational pipeline</div>
+    </div>
+  </div>
+  <div class="hdr-meta">
+    <div class="pill live"><span class="led"></span>session live</div>
+    <div class="pill"><span class="led" style="background:var(--teal)"></span>edge: rpi5+coral</div>
+    <div class="pill"><span class="led" style="background:var(--blue)"></span>cloud: anthropic</div>
+  </div>
+</div>
+
+<div class="shell">
+
+  <div class="title-block">
+    <h1>The voice loop that <em>stays on the lamp</em>,<br>until it doesn't need to.</h1>
+    <p>Wake-word, VAD, and short-utterance ASR run on-device. The cloud LLM is woken only when intent confidence drops below threshold — measured end-to-end, from mic to first speech token.</p>
+  </div>
+
+  <!-- Main column -->
+  <div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="stage">
+        <div class="stage-grid"></div>
+        <div class="stage-label">● live mic · 16kHz · int16</div>
+        <div class="stage-mode" id="stageMode">listening</div>
+        <div class="wave-wrap" id="waveWrap"></div>
+        <div class="vu-row">
+          <span>VU</span>
+          <div class="vu"><div class="vu-fill" id="vuFill"></div></div>
+          <span id="vuDb">−inf dB</span>
+        </div>
+      </div>
+
+      <div class="pipeline">
+        <div class="stage-box" id="p1">
+          <span class="stage-icon">🎙</span>
+          <div class="stage-name">Wake-word</div>
+          <div class="stage-loc edge">edge · openWW</div>
+          <div class="stage-ms" id="p1ms">—</div>
+          <div class="stage-arrow"></div>
+        </div>
+        <div class="stage-box" id="p2">
+          <span class="stage-icon">〜</span>
+          <div class="stage-name">VAD</div>
+          <div class="stage-loc edge">edge · Silero</div>
+          <div class="stage-ms" id="p2ms">—</div>
+          <div class="stage-arrow"></div>
+        </div>
+        <div class="stage-box" id="p3">
+          <span class="stage-icon">🅰</span>
+          <div class="stage-name">ASR</div>
+          <div class="stage-loc edge">edge · whisper-tiny</div>
+          <div class="stage-ms" id="p3ms">—</div>
+          <div class="stage-arrow"></div>
+        </div>
+        <div class="stage-box" id="p4">
+          <span class="stage-icon">⚖</span>
+          <div class="stage-name">Router</div>
+          <div class="stage-loc edge">conf gate</div>
+          <div class="stage-ms" id="p4ms">—</div>
+          <div class="stage-arrow"></div>
+        </div>
+        <div class="stage-box" id="p5">
+          <span class="stage-icon">✦</span>
+          <div class="stage-name">LLM + TTS</div>
+          <div class="stage-loc cloud" id="p5loc">cloud · claude</div>
+          <div class="stage-ms" id="p5ms">—</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn primary" id="btnSay">Simulate "Hey Ongo, what's on my calendar?"</button>
+        <button class="btn" id="btnSimple">Try simple ("set a 5min timer")</button>
+        <button class="btn ghost" id="btnReset">Reset session</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Transcript & <em>turn telemetry</em></div>
+        <div class="card-meta">last 24h · 142 turns</div>
+      </div>
+      <div class="card-body">
+        <div class="transcript" id="transcript">
+          <div class="bubble assistant">
+            Hi — I'm idle until the wake-word fires. Tap a button above to send a turn through the pipeline.
+            <div class="bubble-meta"><b>ttft</b> — <b>edge</b> 100% · <b>cloud</b> 0% · <b>cost</b> $0.000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="right-col">
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Latency <em>budget</em></div>
+        <div class="card-meta">target ≤ 600ms ttft</div>
+      </div>
+      <div class="metric-grid">
+        <div class="metric">
+          <div class="metric-label">Time to first token</div>
+          <div class="metric-value"><em id="mTtft">—</em><span class="metric-unit">ms</span></div>
+          <div class="metric-sub" id="mTtftSub">awaiting turn</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Barge-in recovery</div>
+          <div class="metric-value"><em id="mBarge">—</em><span class="metric-unit">ms</span></div>
+          <div class="metric-sub">mean across session</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Edge-resolved</div>
+          <div class="metric-value"><em id="mEdge">—</em><span class="metric-unit">%</span></div>
+          <div class="metric-sub">no cloud call needed</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Cost / 1k turns</div>
+          <div class="metric-value">$<em id="mCost">—</em></div>
+          <div class="metric-sub" id="mCostSub">awaiting</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Routing <em>decisions</em></div>
+        <div class="card-meta">live · last 6</div>
+      </div>
+      <div class="card-body">
+        <div class="router-rows" id="routerRows">
+          <div class="router-row"><span class="badge edge">EDGE</span><span class="what">conf 0.94 — "set 5min timer"</span><span class="ms">42ms</span></div>
+          <div class="router-row"><span class="badge cloud">CLOUD</span><span class="what">conf 0.61 — calendar query</span><span class="ms">418ms</span></div>
+          <div class="router-row"><span class="badge edge">EDGE</span><span class="what">conf 0.91 — "dim lights"</span><span class="ms">38ms</span></div>
+          <div class="router-row"><span class="badge cloud">CLOUD</span><span class="what">conf 0.55 — open question</span><span class="ms">512ms</span></div>
+          <div class="router-row"><span class="badge edge">EDGE</span><span class="what">conf 0.88 — "next song"</span><span class="ms">35ms</span></div>
+          <div class="router-row"><span class="badge edge">EDGE</span><span class="what">conf 0.92 — "what time"</span><span class="ms">44ms</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">LLM <em>provider</em></div>
+        <div class="card-meta">A/B harness</div>
+      </div>
+      <div class="card-body">
+        <div class="providers" id="providers">
+          <div class="provider active" data-prov="anthropic">
+            <div><div class="provider-name">Anthropic · Haiku 4.5</div><div class="provider-meta">streaming · 200k ctx</div></div>
+            <div class="provider-ms">ttft 412ms</div>
+          </div>
+          <div class="provider" data-prov="openai">
+            <div><div class="provider-name">OpenAI · GPT-4o-mini</div><div class="provider-meta">streaming · 128k ctx</div></div>
+            <div class="provider-ms">ttft 488ms</div>
+          </div>
+          <div class="provider" data-prov="mistral">
+            <div><div class="provider-name">Mistral · Small</div><div class="provider-meta">EU-hosted · 32k ctx</div></div>
+            <div class="provider-ms">ttft 376ms</div>
+          </div>
+          <div class="provider" data-prov="local">
+            <div><div class="provider-name">Local · Llama-3.2-3B</div><div class="provider-meta">on-device · int4</div></div>
+            <div class="provider-ms">ttft 690ms</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Cost <em>split</em></div>
+        <div class="card-meta">session</div>
+      </div>
+      <div class="card-body">
+        <div class="cost-stack" id="costStack">
+          <div class="cost-seg cost-edge" style="width:62%">62% edge</div>
+          <div class="cost-seg cost-cloud" style="width:38%">38% cloud</div>
+        </div>
+        <div class="cost-legend">
+          <span class="e">edge (free)</span>
+          <span class="c">cloud ($)</span>
+        </div>
+        <div style="margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--cream-dim);line-height:1.7">
+          → 62% of turns never touch the cloud<br>
+          → est. <b style="color:var(--coral)">$0.41 / device / month</b><br>
+          → vs always-cloud baseline $1.08
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>github.com/samson1402/ongovoice-rt · MIT</span>
+    <span>built for InteractionLabs · OngoLamp · production-ready edge audio pipeline</span>
+  </div>
+</div>
+
+<script>
+// ---- waveform bars ----
+const waveWrap = document.getElementById('waveWrap');
+const BAR_COUNT = 96;
+for(let i=0;i<BAR_COUNT;i++){
+  const b = document.createElement('div');
+  b.className = 'wave-bar silent';
+  b.style.height = '6px';
+  waveWrap.appendChild(b);
+}
+const bars = [...waveWrap.children];
+
+let waveMode = 'silent'; // silent | user | assistant
+function setWaveMode(m){ waveMode = m; bars.forEach(b=>{b.className='wave-bar '+m})}
+function animateWave(){
+  bars.forEach((b,i)=>{
+    const center = BAR_COUNT/2;
+    const dist = Math.abs(i-center)/center;
+    let h = 6;
+    if(waveMode==='silent') h = 6 + Math.random()*4;
+    else if(waveMode==='user'){
+      const env = Math.exp(-dist*2.5);
+      h = 8 + Math.random()*120*env;
+    } else if(waveMode==='assistant'){
+      const env = Math.exp(-dist*1.8);
+      h = 10 + (Math.sin(Date.now()/180 + i*0.4)*0.5+0.5)*100*env + Math.random()*20*env;
+    }
+    b.style.height = h + 'px';
+  });
+  // VU
+  const target = waveMode==='silent' ? 2 : waveMode==='user' ? 70+Math.random()*25 : 50+Math.random()*30;
+  document.getElementById('vuFill').style.width = target+'%';
+  const db = waveMode==='silent' ? '−∞ dB' : (-30 + target*0.25).toFixed(1)+' dB';
+  document.getElementById('vuDb').textContent = db;
+  requestAnimationFrame(animateWave);
+}
+animateWave();
+
+// ---- pipeline stages ----
+const stages = ['p1','p2','p3','p4','p5'];
+function resetStages(){
+  stages.forEach(id=>{
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    document.getElementById(id+'ms').textContent = '—';
+    document.getElementById(id+'ms').classList.remove('live');
+  });
+}
+function flowStage(id, ms, then){
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  const msEl = document.getElementById(id+'ms');
+  msEl.classList.add('live');
+  msEl.textContent = '... ms';
+  setTimeout(()=>{
+    el.classList.remove('active');
+    el.classList.add('done');
+    msEl.textContent = ms+' ms';
+    msEl.classList.remove('live');
+    if(then) then();
+  }, ms);
+}
+
+// ---- state ----
+let session = {
+  ttft:[], edgeResolved:0, total:0, cost:0, barge:[]
+};
+let activeProvider = 'anthropic';
+const providerTtft = { anthropic:412, openai:488, mistral:376, local:690 };
+
+// ---- transcript ----
+const transcriptEl = document.getElementById('transcript');
+function pushBubble(role, text, meta){
+  const b = document.createElement('div');
+  b.className = 'bubble '+role;
+  b.innerHTML = `${text}<div class="bubble-meta">${meta}</div>`;
+  transcriptEl.appendChild(b);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+// ---- router log ----
+function logRoute(kind, text, ms){
+  const rows = document.getElementById('routerRows');
+  const row = document.createElement('div');
+  row.className = 'router-row';
+  row.innerHTML = `<span class="badge ${kind}">${kind.toUpperCase()}</span><span class="what">${text}</span><span class="ms">${ms}ms</span>`;
+  rows.insertBefore(row, rows.firstChild);
+  while(rows.children.length>6) rows.lastChild.remove();
+}
+
+// ---- update KPIs ----
+function refreshKpis(){
+  if(!session.total){
+    return;
+  }
+  const avgTtft = session.ttft.reduce((a,b)=>a+b,0)/session.ttft.length;
+  const edgePct = (session.edgeResolved / session.total)*100;
+  const avgBarge = session.barge.length? session.barge.reduce((a,b)=>a+b,0)/session.barge.length : 110;
+  const costPer1k = (session.cost / session.total)*1000;
+
+  document.getElementById('mTtft').textContent = Math.round(avgTtft);
+  document.getElementById('mTtftSub').textContent = avgTtft<600?'under 600ms budget':'over budget';
+  document.getElementById('mBarge').textContent = Math.round(avgBarge);
+  document.getElementById('mEdge').textContent = Math.round(edgePct);
+  document.getElementById('mCost').textContent = costPer1k.toFixed(2);
+  document.getElementById('mCostSub').textContent = `vs $${(1.08).toFixed(2)} always-cloud`;
+
+  // cost split bar
+  const stack = document.getElementById('costStack');
+  stack.innerHTML = `
+    <div class="cost-seg cost-edge" style="width:${edgePct.toFixed(0)}%">${edgePct.toFixed(0)}% edge</div>
+    <div class="cost-seg cost-cloud" style="width:${(100-edgePct).toFixed(0)}%">${(100-edgePct).toFixed(0)}% cloud</div>
+  `;
+}
+
+// ---- simulated turn ----
+function runTurn({utterance, intent, edgeOnly, expectedAnswer}){
+  resetStages();
+  setWaveMode('user');
+  document.getElementById('stageMode').textContent = 'user speaking';
+  document.getElementById('stageMode').className = 'stage-mode user';
+
+  const t0 = performance.now();
+
+  // wake word
+  flowStage('p1', 38, ()=>{
+    // VAD
+    flowStage('p2', 12, ()=>{
+      // ASR
+      setTimeout(()=>{
+        flowStage('p3', 168, ()=>{
+          // Router
+          flowStage('p4', 6, ()=>{
+            const conf = edgeOnly ? (0.86+Math.random()*0.1) : (0.45+Math.random()*0.18);
+            logRoute(edgeOnly?'edge':'cloud', `conf ${conf.toFixed(2)} — "${utterance.slice(0,28)}${utterance.length>28?'…':''}"`, edgeOnly?Math.round(50+Math.random()*15):Math.round(400+Math.random()*150));
+
+            if(edgeOnly){
+              // edge LLM finishes quickly
+              document.getElementById('p5loc').textContent = 'edge · llama-3.2-3b';
+              document.getElementById('p5loc').className = 'stage-loc edge';
+              flowStage('p5', 95, ()=>{
+                setWaveMode('assistant');
+                document.getElementById('stageMode').textContent = 'assistant speaking';
+                document.getElementById('stageMode').className = 'stage-mode assistant';
+
+                const ttft = Math.round(performance.now()-t0);
+                pushBubble('user', utterance, `<b>turn</b> ${session.total+1} · <b>edge</b> · <b>asr</b> 168ms`);
+                pushBubble('assistant', expectedAnswer, `<b>ttft</b> ${ttft}ms · <b>edge</b> resolved · <b>cost</b> $0.000`);
+
+                session.total++;
+                session.edgeResolved++;
+                session.ttft.push(ttft);
+                session.barge.push(85+Math.random()*40);
+                refreshKpis();
+
+                setTimeout(()=>{ setWaveMode('silent'); document.getElementById('stageMode').textContent='listening'; document.getElementById('stageMode').className='stage-mode'; }, 1400);
+              });
+            } else {
+              // cloud path
+              document.getElementById('p5loc').textContent = 'cloud · ' + activeProvider;
+              document.getElementById('p5loc').className = 'stage-loc cloud';
+              flowStage('p5', providerTtft[activeProvider]-220, ()=>{
+                setWaveMode('assistant');
+                document.getElementById('stageMode').textContent = 'assistant speaking';
+                document.getElementById('stageMode').className = 'stage-mode assistant';
+
+                const ttft = Math.round(performance.now()-t0);
+                pushBubble('user', utterance, `<b>turn</b> ${session.total+1} · <b>cloud</b> · <b>asr</b> 168ms`);
+                pushBubble('assistant', expectedAnswer, `<b>ttft</b> ${ttft}ms · <b>cloud · ${activeProvider}</b> · <b>cost</b> $0.0014`);
+
+                session.total++;
+                session.ttft.push(ttft);
+                session.barge.push(95+Math.random()*40);
+                session.cost += 0.0014;
+                refreshKpis();
+
+                setTimeout(()=>{ setWaveMode('silent'); document.getElementById('stageMode').textContent='listening'; document.getElementById('stageMode').className='stage-mode'; }, 1800);
+              });
+            }
+          });
+        });
+      }, 80);
+    });
+  });
+}
+
+// ---- buttons ----
+document.getElementById('btnSay').addEventListener('click', ()=>{
+  runTurn({
+    utterance:"Hey Ongo, what's on my calendar this afternoon?",
+    edgeOnly:false,
+    expectedAnswer:"You have two things — 'design sync' at 2:30 and a call with Joonatan at 4. Want me to remind you 10 min before the call?"
+  });
+});
+
+document.getElementById('btnSimple').addEventListener('click', ()=>{
+  runTurn({
+    utterance:"Hey Ongo, set a 5 minute timer.",
+    edgeOnly:true,
+    expectedAnswer:"Timer set — 5 minutes. I'll chirp when it's done."
+  });
+});
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  resetStages();
+  session = {ttft:[], edgeResolved:0, total:0, cost:0, barge:[]};
+  transcriptEl.innerHTML = `<div class="bubble assistant">Session reset. Ready when you are.<div class="bubble-meta"><b>ttft</b> — · <b>edge</b> 100% · <b>cloud</b> 0%</div></div>`;
+  ['mTtft','mBarge','mEdge','mCost'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('mTtftSub').textContent='awaiting turn';
+  document.getElementById('mCostSub').textContent='awaiting';
+});
+
+// ---- provider switch ----
+document.querySelectorAll('.provider').forEach(p=>{
+  p.addEventListener('click', ()=>{
+    document.querySelectorAll('.provider').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    activeProvider = p.dataset.prov;
+  });
+});
+</script>
+</body>
+</html>

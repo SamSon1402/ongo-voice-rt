@@ -1,0 +1,48 @@
+# OngoVoice-RT pipeline configuration.
+#
+# Loaded by the manager at startup. Switching providers is a config
+# change — no code change needed.
+
+audio:
+  sample_rate: 16000
+  frame_ms: 30
+  ring_buffer_frames: 400
+
+vad:
+  type: energy            # energy | silero
+  rms_threshold: 300
+  hangover_ms: 200
+
+wake_word:
+  phrase: "Hey Ongo"
+  type: keyword           # keyword | openww | picovoice
+
+asr:
+  type: whisper           # whisper | cloud
+  model: tiny.en
+  device: cpu
+  compute_type: int8
+
+router:
+  confidence_threshold: 0.65
+  monthly_budget_usd: 1.50
+
+llm:
+  edge:
+    provider: local
+    model: llama-3.2-3b-int4
+  cloud:
+    provider: anthropic
+    model: claude-haiku-4-5
+  fallback:
+    provider: openai
+    model: gpt-4o-mini
+
+tts:
+  type: piper            # piper | mock
+  voice: en_GB-alan-low
+  sample_rate: 22050
+
+system_prompt: |
+  You are Ongo, a friendly desk-lamp companion robot. Keep replies
+  short — one or two sentences — because you're speaking, not typing.
