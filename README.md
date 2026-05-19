@@ -3,6 +3,11 @@
 > Real-time, edge-first conversational pipeline for the Ongo companion robot.
 > Built for InteractionLabs by Sameer M. — Paris, May 2026.
 
+<img width="1356" height="908" alt="image" src="https://github.com/user-attachments/assets/3ffa55c0-99e2-4fce-9420-556240b4eaaa" />
+<img width="690" height="338" alt="image" src="https://github.com/user-attachments/assets/3d411c94-cde0-4944-a36e-35ec3ae20c79" />
+<img width="869" height="856" alt="image" src="https://github.com/user-attachments/assets/7111296d-0533-4e7b-93ad-3300b831cfd7" />
+
+
 A streaming voice loop where **wake-word, VAD, and short-utterance ASR
 run on-device**, and a cloud LLM is only woken when intent confidence
 drops below threshold. End-to-end time-to-first-token is the contract.
